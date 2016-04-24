@@ -17,6 +17,22 @@ import (
 	"time"
 )
 
+// Ref has Marshaler and Unmarshaler methods with pointer receiver.
+type Ref int
+
+func (r *Ref) UnmarshalJSON([]byte) error {
+	*r = 12
+	return nil
+}
+
+// RefText has Marshaler and Unmarshaler methods with pointer receiver.
+type RefText int
+
+func (r *RefText) UnmarshalText([]byte) error {
+	*r = 13
+	return nil
+}
+
 type T struct {
 	X string
 	Y int
@@ -70,11 +86,6 @@ type ustruct struct {
 
 type unmarshalerText struct {
 	A, B string
-}
-
-// needed for re-marshaling tests
-func (u unmarshalerText) MarshalText() ([]byte, error) {
-	return []byte(u.A + ":" + u.B), nil
 }
 
 func (u *unmarshalerText) UnmarshalText(b []byte) error {
@@ -460,28 +471,6 @@ var unmarshalTests = []unmarshalTest{
 	},
 }
 
-func TestMarshal(t *testing.T) {
-	b, err := Marshal(allValue)
-	if err != nil {
-		t.Fatalf("Marshal allValue: %v", err)
-	}
-	if string(b) != allValueCompact {
-		t.Errorf("Marshal allValueCompact")
-		diff(t, b, []byte(allValueCompact))
-		return
-	}
-
-	b, err = Marshal(pallValue)
-	if err != nil {
-		t.Fatalf("Marshal pallValue: %v", err)
-	}
-	if string(b) != pallValueCompact {
-		t.Errorf("Marshal pallValueCompact")
-		diff(t, b, []byte(pallValueCompact))
-		return
-	}
-}
-
 var badUTF8 = []struct {
 	in, out string
 }{
@@ -491,69 +480,6 @@ var badUTF8 = []struct {
 	{"\xff\xff", `"\ufffd\ufffd"`},
 	{"a\xffb", `"a\ufffdb"`},
 	{"\xe6\x97\xa5\xe6\x9c\xac\xff\xaa\x9e", `"日本\ufffd\ufffd\ufffd"`},
-}
-
-func TestMarshalBadUTF8(t *testing.T) {
-	for _, tt := range badUTF8 {
-		b, err := Marshal(tt.in)
-		if string(b) != tt.out || err != nil {
-			t.Errorf("Marshal(%q) = %#q, %v, want %#q, nil", tt.in, b, err, tt.out)
-		}
-	}
-}
-
-func TestMarshalNumberZeroVal(t *testing.T) {
-	var n Number
-	out, err := Marshal(n)
-	if err != nil {
-		t.Fatal(err)
-	}
-	outStr := string(out)
-	if outStr != "0" {
-		t.Fatalf("Invalid zero val for Number: %q", outStr)
-	}
-}
-
-func TestMarshalEmbeds(t *testing.T) {
-	top := &Top{
-		Level0: 1,
-		Embed0: Embed0{
-			Level1b: 2,
-			Level1c: 3,
-		},
-		Embed0a: &Embed0a{
-			Level1a: 5,
-			Level1b: 6,
-		},
-		Embed0b: &Embed0b{
-			Level1a: 8,
-			Level1b: 9,
-			Level1c: 10,
-			Level1d: 11,
-			Level1e: 12,
-		},
-		Loop: Loop{
-			Loop1: 13,
-			Loop2: 14,
-		},
-		Embed0p: Embed0p{
-			Point: image.Point{X: 15, Y: 16},
-		},
-		Embed0q: Embed0q{
-			Point: Point{Z: 17},
-		},
-		embed: embed{
-			Q: 18,
-		},
-	}
-	b, err := Marshal(top)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "{\"Level0\":1,\"Level1b\":2,\"Level1c\":3,\"Level1a\":5,\"LEVEL1B\":6,\"e\":{\"Level1a\":8,\"Level1b\":9,\"Level1c\":10,\"Level1d\":11,\"x\":12},\"Loop1\":13,\"Loop2\":14,\"X\":15,\"Y\":16,\"Z\":17,\"Q\":18}"
-	if string(b) != want {
-		t.Errorf("Wrong marshal result.\n got: %q\nwant: %q", b, want)
-	}
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -584,53 +510,8 @@ func TestUnmarshal(t *testing.T) {
 		}
 		if !reflect.DeepEqual(v.Elem().Interface(), tt.out) {
 			t.Errorf("#%d: mismatch\nhave: %#+v\nwant: %#+v", i, v.Elem().Interface(), tt.out)
-			data, _ := Marshal(v.Elem().Interface())
-			println(string(data))
-			data, _ = Marshal(tt.out)
-			println(string(data))
 			continue
 		}
-
-		// Check round trip.
-		if tt.err == nil {
-			enc, err := Marshal(v.Interface())
-			if err != nil {
-				t.Errorf("#%d: error re-marshaling: %v", i, err)
-				continue
-			}
-			vv := reflect.New(reflect.TypeOf(tt.ptr).Elem())
-			dec = NewDecoder(bytes.NewReader(enc))
-			if tt.useNumber {
-				dec.UseNumber()
-			}
-			if err := dec.Decode(vv.Interface()); err != nil {
-				t.Errorf("#%d: error re-unmarshaling %#q: %v", i, enc, err)
-				continue
-			}
-			if !reflect.DeepEqual(v.Elem().Interface(), vv.Elem().Interface()) {
-				t.Errorf("#%d: mismatch\nhave: %#+v\nwant: %#+v", i, v.Elem().Interface(), vv.Elem().Interface())
-				t.Errorf("     In: %q", strings.Map(noSpace, string(in)))
-				t.Errorf("Marshal: %q", strings.Map(noSpace, string(enc)))
-				continue
-			}
-		}
-	}
-}
-
-func TestUnmarshalMarshal(t *testing.T) {
-	initBig()
-	var v interface{}
-	if err := Unmarshal(jsonBig, &v); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-	b, err := Marshal(v)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-	if !bytes.Equal(jsonBig, b) {
-		t.Errorf("Marshal jsonBig")
-		diff(t, b, jsonBig)
-		return
 	}
 }
 
@@ -666,25 +547,6 @@ func TestNumberAccessors(t *testing.T) {
 	}
 }
 
-func TestLargeByteSlice(t *testing.T) {
-	s0 := make([]byte, 2000)
-	for i := range s0 {
-		s0[i] = byte(i)
-	}
-	b, err := Marshal(s0)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-	var s1 []byte
-	if err := Unmarshal(b, &s1); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-	if !bytes.Equal(s0, s1) {
-		t.Errorf("Marshal large byte slice")
-		diff(t, s0, s1)
-	}
-}
-
 type Xint struct {
 	X int
 }
@@ -708,18 +570,6 @@ func TestUnmarshalPtrPtr(t *testing.T) {
 	}
 	if xint.X != 1 {
 		t.Fatalf("Did not write to xint")
-	}
-}
-
-func TestEscape(t *testing.T) {
-	const input = `"foobar"<html>` + " [\u2028 \u2029]"
-	const expected = `"\"foobar\"\u003chtml\u003e [\u2028 \u2029]"`
-	b, err := Marshal(input)
-	if err != nil {
-		t.Fatalf("Marshal error: %v", err)
-	}
-	if s := string(b); s != expected {
-		t.Errorf("Encoding of [%s]:\n got [%s]\nwant [%s]", input, s, expected)
 	}
 }
 
@@ -1234,72 +1084,6 @@ func TestUnmarshalNulls(t *testing.T) {
 	}
 }
 
-func TestStringKind(t *testing.T) {
-	type stringKind string
-
-	var m1, m2 map[stringKind]int
-	m1 = map[stringKind]int{
-		"foo": 42,
-	}
-
-	data, err := Marshal(m1)
-	if err != nil {
-		t.Errorf("Unexpected error marshaling: %v", err)
-	}
-
-	err = Unmarshal(data, &m2)
-	if err != nil {
-		t.Errorf("Unexpected error unmarshaling: %v", err)
-	}
-
-	if !reflect.DeepEqual(m1, m2) {
-		t.Error("Items should be equal after encoding and then decoding")
-	}
-}
-
-// Custom types with []byte as underlying type could not be marshalled
-// and then unmarshalled.
-// Issue 8962.
-func TestByteKind(t *testing.T) {
-	type byteKind []byte
-
-	a := byteKind("hello")
-
-	data, err := Marshal(a)
-	if err != nil {
-		t.Error(err)
-	}
-	var b byteKind
-	err = Unmarshal(data, &b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(a, b) {
-		t.Errorf("expected %v == %v", a, b)
-	}
-}
-
-// The fix for issue 8962 introduced a regression.
-// Issue 12921.
-func TestSliceOfCustomByte(t *testing.T) {
-	type Uint8 uint8
-
-	a := []Uint8("hello")
-
-	data, err := Marshal(a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var b []Uint8
-	err = Unmarshal(data, &b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(a, b) {
-		t.Fatalf("expected %v == %v", a, b)
-	}
-}
-
 var decodeTypeErrorTests = []struct {
 	dest interface{}
 	src  string
@@ -1484,29 +1268,5 @@ func TestInvalidUnmarshalText(t *testing.T) {
 		if got := err.Error(); got != tt.want {
 			t.Errorf("Unmarshal = %q; want %q", got, tt.want)
 		}
-	}
-}
-
-// Test that string option is ignored for invalid types.
-// Issue 9812.
-func TestInvalidStringOption(t *testing.T) {
-	num := 0
-	item := struct {
-		T time.Time         `json:",string"`
-		M map[string]string `json:",string"`
-		S []string          `json:",string"`
-		A [1]string         `json:",string"`
-		I interface{}       `json:",string"`
-		P *int              `json:",string"`
-	}{M: make(map[string]string), S: make([]string, 0), I: num, P: &num}
-
-	data, err := Marshal(item)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-
-	err = Unmarshal(data, &item)
-	if err != nil {
-		t.Fatalf("Unmarshal: %v", err)
 	}
 }

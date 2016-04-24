@@ -164,83 +164,10 @@ func nonSpace(b []byte) bool {
 	return false
 }
 
-// An Encoder writes JSON values to an output stream.
-type Encoder struct {
-	w          io.Writer
-	err        error
-	escapeHTML bool
-
-	indentBuf    *bytes.Buffer
-	indentPrefix string
-	indentValue  string
-}
-
-// NewEncoder returns a new encoder that writes to w.
-func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{w: w, escapeHTML: true}
-}
-
-// Encode writes the JSON encoding of v to the stream,
-// followed by a newline character.
-//
-// See the documentation for Marshal for details about the
-// conversion of Go values to JSON.
-func (enc *Encoder) Encode(v interface{}) error {
-	if enc.err != nil {
-		return enc.err
-	}
-	e := newEncodeState()
-	err := e.marshal(v, encOpts{escapeHTML: enc.escapeHTML})
-	if err != nil {
-		return err
-	}
-
-	// Terminate each value with a newline.
-	// This makes the output look a little nicer
-	// when debugging, and some kind of space
-	// is required if the encoded value was a number,
-	// so that the reader knows there aren't more
-	// digits coming.
-	e.WriteByte('\n')
-
-	b := e.Bytes()
-	if enc.indentBuf != nil {
-		enc.indentBuf.Reset()
-		err = Indent(enc.indentBuf, b, enc.indentPrefix, enc.indentValue)
-		if err != nil {
-			return err
-		}
-		b = enc.indentBuf.Bytes()
-	}
-	if _, err = enc.w.Write(b); err != nil {
-		enc.err = err
-	}
-	encodeStatePool.Put(e)
-	return err
-}
-
-// Indent sets the encoder to format each encoded value with Indent.
-func (enc *Encoder) Indent(prefix, indent string) {
-	enc.indentBuf = new(bytes.Buffer)
-	enc.indentPrefix = prefix
-	enc.indentValue = indent
-}
-
-// DisableHTMLEscaping causes the encoder not to escape angle brackets
-// ("<" and ">") or ampersands ("&") in JSON strings.
-func (enc *Encoder) DisableHTMLEscaping() {
-	enc.escapeHTML = false
-}
-
 // RawMessage is a raw encoded JSON value.
 // It implements Marshaler and Unmarshaler and can
 // be used to delay JSON decoding or precompute a JSON encoding.
 type RawMessage []byte
-
-// MarshalJSON returns *m as the JSON encoding of m.
-func (m *RawMessage) MarshalJSON() ([]byte, error) {
-	return *m, nil
-}
 
 // UnmarshalJSON sets *m to a copy of data.
 func (m *RawMessage) UnmarshalJSON(data []byte) error {
@@ -251,7 +178,6 @@ func (m *RawMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-var _ Marshaler = (*RawMessage)(nil)
 var _ Unmarshaler = (*RawMessage)(nil)
 
 // A Token holds a value of one of these types:
@@ -488,20 +414,3 @@ func (dec *Decoder) peek() (byte, error) {
 		err = dec.refill()
 	}
 }
-
-/*
-TODO
-
-// EncodeToken writes the given JSON token to the stream.
-// It returns an error if the delimiters [ ] { } are not properly used.
-//
-// EncodeToken does not call Flush, because usually it is part of
-// a larger operation such as Encode, and those will call Flush when finished.
-// Callers that create an Encoder and then invoke EncodeToken directly,
-// without using Encode, need to call Flush when finished to ensure that
-// the JSON is written to the underlying writer.
-func (e *Encoder) EncodeToken(t Token) error  {
-	...
-}
-
-*/
