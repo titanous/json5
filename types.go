@@ -1,4 +1,4 @@
-package json
+package json5
 
 import (
 	"reflect"
