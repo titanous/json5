@@ -381,7 +381,7 @@ func stateEndValue(s *scanner, c byte) int {
 	case parseObjectValue:
 		if c == ',' {
 			s.parseState[n-1] = parseObjectKey
-			s.step = stateBeginObjectKey
+			s.step = stateBeginObjectKeyOrEmpty
 			return scanObjectValue
 		}
 		if c == '}' {
