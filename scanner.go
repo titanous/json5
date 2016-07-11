@@ -304,7 +304,7 @@ func stateEndValue(s *scanner, c byte) int {
 		return s.error(c, "after object key:value pair")
 	case parseArrayValue:
 		if c == ',' {
-			s.step = stateBeginValue
+			s.step = stateBeginValueOrEmpty
 			return scanArrayValue
 		}
 		if c == ']' {
