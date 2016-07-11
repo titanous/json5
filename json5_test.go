@@ -16,7 +16,7 @@ type ErrorSpec struct {
 	At           int
 	LineNumber   int
 	ColumnNumber int
-	Message      int
+	Message      string
 }
 
 func TestJSON5Decode(t *testing.T) {

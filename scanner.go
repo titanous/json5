@@ -210,7 +210,7 @@ func stateBeginValue(s *scanner, c byte) int {
 	}
 	switch c {
 	case '{':
-		s.step = stateBeginStringOrEmpty
+		s.step = stateBeginKeyOrEmpty
 		s.pushParseState(parseObjectKey)
 		return scanBeginObject
 	case '[':
@@ -243,8 +243,8 @@ func stateBeginValue(s *scanner, c byte) int {
 	return s.error(c, "looking for beginning of value")
 }
 
-// stateBeginStringOrEmpty is the state after reading `{`.
-func stateBeginStringOrEmpty(s *scanner, c byte) int {
+// stateBeginKeyOrEmpty is the state after reading `{`.
+func stateBeginKeyOrEmpty(s *scanner, c byte) int {
 	if c <= ' ' && isSpace(c) {
 		return scanSkipSpace
 	}
@@ -253,11 +253,11 @@ func stateBeginStringOrEmpty(s *scanner, c byte) int {
 		s.parseState[n-1] = parseObjectValue
 		return stateEndValue(s, c)
 	}
-	return stateBeginString(s, c)
+	return stateBeginKey(s, c)
 }
 
-// stateBeginString is the state after reading `{"key": value,`.
-func stateBeginString(s *scanner, c byte) int {
+// stateBeginKey is the state after reading `{"key": value,`.
+func stateBeginKey(s *scanner, c byte) int {
 	if c <= ' ' && isSpace(c) {
 		return scanSkipSpace
 	}
@@ -265,7 +265,31 @@ func stateBeginString(s *scanner, c byte) int {
 		s.step = stateInString
 		return scanBeginLiteral
 	}
-	return s.error(c, "looking for beginning of object key string")
+	if isValidKeyLiteralFirstByte(c) {
+		s.step = stateInKeyLiteral
+		return scanBeginLiteral
+	}
+
+	return s.error(c, "looking for beginning of object key")
+}
+
+// stateInKeyLiteral is the state when starting to read an object key with no quotes
+func stateInKeyLiteral(s *scanner, c byte) int {
+	if c == ':' || isSpace(c) {
+		return stateEndValue(s, c)
+	}
+	if !isValidKeyLiteralByte(c) {
+		return s.error(c, "in key literal")
+	}
+	return scanContinue
+}
+
+func isValidKeyLiteralFirstByte(c byte) bool {
+	return isValidKeyLiteralByte(c) && (c < '0' || c > '9')
+}
+
+func isValidKeyLiteralByte(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$'
 }
 
 // stateEndValue is the state after completing a value,
@@ -294,7 +318,7 @@ func stateEndValue(s *scanner, c byte) int {
 	case parseObjectValue:
 		if c == ',' {
 			s.parseState[n-1] = parseObjectKey
-			s.step = stateBeginString
+			s.step = stateBeginKey
 			return scanObjectValue
 		}
 		if c == '}' {
