@@ -477,14 +477,28 @@ func stateInStringSingle(s *scanner, c byte) int {
 func stateInStringEsc(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
 	return func(s *scanner, c byte) int {
 		switch c {
-		case 'b', 'f', 'n', 'r', 't', '\\', '/', '"', '\'':
+		case 'b', 'f', 'n', 'r', 't', '\\', '/', '"', '\'', '\n':
 			s.step = resume
 			return scanContinue
 		case 'u':
 			s.step = stateInStringEscU(resume)
 			return scanContinue
+		case '\r':
+			s.step = stateInStringEscCR(resume)
+			return scanContinue
 		}
 		return s.error(c, "in string escape code")
+	}
+}
+
+// stateInStringEscCR is the state after reading `"\\r` during a quoted string.
+func stateInStringEscCR(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
+	return func(s *scanner, c byte) int {
+		if c == '\n' {
+			s.step = resume
+			return scanContinue
+		}
+		return resume(s, c)
 	}
 }
 

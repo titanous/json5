@@ -1150,6 +1150,13 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 				b[w] = '\b'
 				r++
 				w++
+			case '\n':
+				r++
+			case '\r':
+				r++
+				if r < len(s) && s[r] == '\n' {
+					r++
+				}
 			case 'f':
 				b[w] = '\f'
 				r++
