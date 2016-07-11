@@ -11,7 +11,7 @@ multi-line string',
     /* this is a block comment
        that continues on another line */
 
-    hex: 0xDEADbeef,
+    hex: 0xDeADb,
     half: .5,
     delta: +10,
     to: Infinity,   // and beyond!

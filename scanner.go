@@ -239,7 +239,7 @@ func stateBeginValue(s *scanner, c byte) int {
 		s.step = stateDot
 		return scanBeginLiteral
 	case '0': // beginning of 0.123
-		s.step = state0
+		s.step = stateFirst0
 		return scanBeginLiteral
 	case 't': // beginning of true
 		s.step = stateT
@@ -553,7 +553,7 @@ func stateInStringEscU123(resume func(s *scanner, c byte) int) func(s *scanner, 
 // stateSign is the state after reading `+` or `-` during a number.
 func stateSign(s *scanner, c byte) int {
 	if c == '0' {
-		s.step = state0
+		s.step = stateFirst0
 		return scanContinue
 	}
 	if '1' <= c && c <= '9' {
@@ -575,6 +575,40 @@ func state1(s *scanner, c byte) int {
 		return scanContinue
 	}
 	return state0(s, c)
+}
+
+// stateFirst0 is the state after the first integer in a number is `0`
+func stateFirst0(s *scanner, c byte) int {
+	switch c {
+	case '.':
+		s.step = stateDot
+		return scanContinue
+	case 'e', 'E':
+		s.step = stateE
+		return scanContinue
+	case 'x', 'X':
+		s.step = stateFirstHex
+		return scanContinue
+	default:
+		return stateEndValue(s, c)
+	}
+}
+
+// stateFirstHex is the state after reading 0x in a number
+func stateFirstHex(s *scanner, c byte) int {
+	if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+		s.step = stateHex
+		return scanContinue
+	}
+	return s.error(c, "in hex number")
+}
+
+// stateHex is the state after reading the first hex digit in a number
+func stateHex(s *scanner, c byte) int {
+	if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+		return scanContinue
+	}
+	return stateEndValue(s, c)
 }
 
 // state0 is the state after reading `0` during a number.
