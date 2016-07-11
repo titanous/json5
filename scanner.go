@@ -232,6 +232,9 @@ func stateBeginValue(s *scanner, c byte) int {
 	case '-', '+':
 		s.step = stateSign
 		return scanBeginLiteral
+	case '.':
+		s.step = stateDot
+		return scanBeginLiteral
 	case '0': // beginning of 0.123
 		s.step = state0
 		return scanBeginLiteral
@@ -498,6 +501,10 @@ func stateSign(s *scanner, c byte) int {
 		s.step = state1
 		return scanContinue
 	}
+	if c == '.' {
+		s.step = stateSign
+		return scanContinue
+	}
 	return s.error(c, "in numeric literal")
 }
 
@@ -531,7 +538,11 @@ func stateDot(s *scanner, c byte) int {
 		s.step = stateDot0
 		return scanContinue
 	}
-	return s.error(c, "after decimal point in numeric literal")
+	if c == 'e' || c == 'E' {
+		s.step = stateE
+		return scanContinue
+	}
+	return stateEndValue(s, c)
 }
 
 // stateDot0 is the state after reading the integer, decimal point, and subsequent

@@ -197,8 +197,8 @@ func isValidNumber(s string) bool {
 		return false
 	}
 
-	// Optional -/+
-	if s[0] == '-' || s[0] == '+' {
+	// Optional -/+/.
+	if s[0] == '-' || s[0] == '+' || s[0] == '.' {
 		s = s[1:]
 		if s == "" {
 			return false
@@ -878,7 +878,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 		}
 
 	default: // number
-		if c != '-' && c != '+' && (c < '0' || c > '9') {
+		if c != '-' && c != '+' && c != '.' && (c < '0' || c > '9') {
 			if fromQuoted {
 				d.error(fmt.Errorf("json: invalid use of ,string struct tag, trying to unmarshal %q into %v", item, v.Type()))
 			} else {
@@ -1061,7 +1061,7 @@ func (d *decodeState) literalInterface() interface{} {
 		return s
 
 	default: // number
-		if c != '-' && c != '+' && (c < '0' || c > '9') {
+		if c != '-' && c != '+' && c != '.' && (c < '0' || c > '9') {
 			d.error(errPhase)
 		}
 		n, err := d.convertNumber(string(item))
