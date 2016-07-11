@@ -229,8 +229,8 @@ func stateBeginValue(s *scanner, c byte) int {
 	case '"':
 		s.step = stateInString
 		return scanBeginLiteral
-	case '-':
-		s.step = stateNeg
+	case '-', '+':
+		s.step = stateSign
 		return scanBeginLiteral
 	case '0': // beginning of 0.123
 		s.step = state0
@@ -488,8 +488,8 @@ func stateInStringEscU123(s *scanner, c byte) int {
 	return s.error(c, "in \\u hexadecimal character escape")
 }
 
-// stateNeg is the state after reading `-` during a number.
-func stateNeg(s *scanner, c byte) int {
+// stateSign is the state after reading `+` or `-` during a number.
+func stateSign(s *scanner, c byte) int {
 	if c == '0' {
 		s.step = state0
 		return scanContinue
