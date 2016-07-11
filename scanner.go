@@ -275,11 +275,23 @@ func stateBeginComment(s *scanner, c byte) int {
 }
 
 func stateInLineComment(s *scanner, c byte) int {
+	if c == '\r' {
+		s.step = stateInLineCommentCR
+	}
 	if c == '\n' {
 		s.step = s.commentEndStep
 		s.commentEndStep = nil
 	}
 	return scanSkipSpace
+}
+
+func stateInLineCommentCR(s *scanner, c byte) int {
+	if c == '\n' {
+		s.step = s.commentEndStep
+		s.commentEndStep = nil
+		return scanSkipSpace
+	}
+	return s.commentEndStep(s, c)
 }
 
 func stateInBlockComment(s *scanner, c byte) int {
