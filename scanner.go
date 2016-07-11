@@ -219,7 +219,7 @@ func stateBeginValue(s *scanner, c byte) int {
 	}
 	switch c {
 	case '{':
-		s.step = stateBeginKeyOrEmpty
+		s.step = stateBeginObjectKeyOrEmpty
 		s.pushParseState(parseObjectKey)
 		return scanBeginObject
 	case '[':
@@ -291,8 +291,8 @@ func stateMaybeEndBlockComment(s *scanner, c byte) int {
 	return scanSkipSpace
 }
 
-// stateBeginKeyOrEmpty is the state after reading `{`.
-func stateBeginKeyOrEmpty(s *scanner, c byte) int {
+// stateBeginObjectKeyOrEmpty is the state after reading `{`.
+func stateBeginObjectKeyOrEmpty(s *scanner, c byte) int {
 	if c <= ' ' && isSpace(c) {
 		return scanSkipSpace
 	}
@@ -303,14 +303,14 @@ func stateBeginKeyOrEmpty(s *scanner, c byte) int {
 	}
 	if c == '/' {
 		s.step = stateBeginComment
-		s.commentEndStep = stateBeginKeyOrEmpty
+		s.commentEndStep = stateBeginObjectKeyOrEmpty
 		return scanSkipSpace
 	}
-	return stateBeginKey(s, c)
+	return stateBeginObjectKey(s, c)
 }
 
-// stateBeginKey is the state after reading `{"key": value,`.
-func stateBeginKey(s *scanner, c byte) int {
+// stateBeginObjectKey is the state after reading `{"key": value,`.
+func stateBeginObjectKey(s *scanner, c byte) int {
 	if c <= ' ' && isSpace(c) {
 		return scanSkipSpace
 	}
@@ -324,7 +324,7 @@ func stateBeginKey(s *scanner, c byte) int {
 	}
 	if c == '/' {
 		s.step = stateBeginComment
-		s.commentEndStep = stateBeginKey
+		s.commentEndStep = stateBeginObjectKey
 		return scanSkipSpace
 	}
 
@@ -381,7 +381,7 @@ func stateEndValue(s *scanner, c byte) int {
 	case parseObjectValue:
 		if c == ',' {
 			s.parseState[n-1] = parseObjectKey
-			s.step = stateBeginKey
+			s.step = stateBeginObjectKey
 			return scanObjectValue
 		}
 		if c == '}' {
