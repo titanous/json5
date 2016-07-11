@@ -87,6 +87,10 @@ type scanner struct {
 	// on a 64-bit Mac Mini, and it's nicer to read.
 	step func(*scanner, byte) int
 
+	// Comments are hidden from callers of the scanner, commentEndStep is used
+	// to resume normal parsing when a comment ends.
+	commentEndStep func(*scanner, byte) int
+
 	// Reached end of top-level value.
 	endTop bool
 
@@ -200,6 +204,11 @@ func stateBeginValueOrEmpty(s *scanner, c byte) int {
 	if c == ']' {
 		return stateEndValue(s, c)
 	}
+	if c == '/' {
+		s.step = stateBeginComment
+		s.commentEndStep = stateBeginValueOrEmpty
+		return scanSkipSpace
+	}
 	return stateBeginValue(s, c)
 }
 
@@ -235,12 +244,51 @@ func stateBeginValue(s *scanner, c byte) int {
 	case 'n': // beginning of null
 		s.step = stateN
 		return scanBeginLiteral
+	case '/':
+		s.step = stateBeginComment
+		s.commentEndStep = stateBeginValue
+		return scanSkipSpace
 	}
 	if '1' <= c && c <= '9' { // beginning of 1234.5
 		s.step = state1
 		return scanBeginLiteral
 	}
 	return s.error(c, "looking for beginning of value")
+}
+
+func stateBeginComment(s *scanner, c byte) int {
+	if c == '/' {
+		s.step = stateInLineComment
+		return scanSkipSpace
+	}
+	if c == '*' {
+		s.step = stateInBlockComment
+		return scanSkipSpace
+	}
+	return s.error(c, "potentially starting comment")
+}
+
+func stateInLineComment(s *scanner, c byte) int {
+	if c == '\n' {
+		s.step = s.commentEndStep
+		s.commentEndStep = nil
+	}
+	return scanSkipSpace
+}
+
+func stateInBlockComment(s *scanner, c byte) int {
+	if c == '*' {
+		s.step = stateMaybeEndBlockComment
+	}
+	return scanSkipSpace
+}
+
+func stateMaybeEndBlockComment(s *scanner, c byte) int {
+	if c == '/' {
+		s.step = s.commentEndStep
+		s.commentEndStep = nil
+	}
+	return scanSkipSpace
 }
 
 // stateBeginKeyOrEmpty is the state after reading `{`.
@@ -252,6 +300,11 @@ func stateBeginKeyOrEmpty(s *scanner, c byte) int {
 		n := len(s.parseState)
 		s.parseState[n-1] = parseObjectValue
 		return stateEndValue(s, c)
+	}
+	if c == '/' {
+		s.step = stateBeginComment
+		s.commentEndStep = stateBeginKeyOrEmpty
+		return scanSkipSpace
 	}
 	return stateBeginKey(s, c)
 }
@@ -268,6 +321,11 @@ func stateBeginKey(s *scanner, c byte) int {
 	if isValidKeyLiteralFirstByte(c) {
 		s.step = stateInKeyLiteral
 		return scanBeginLiteral
+	}
+	if c == '/' {
+		s.step = stateBeginComment
+		s.commentEndStep = stateBeginKey
+		return scanSkipSpace
 	}
 
 	return s.error(c, "looking for beginning of object key")
@@ -304,6 +362,11 @@ func stateEndValue(s *scanner, c byte) int {
 	}
 	if c <= ' ' && isSpace(c) {
 		s.step = stateEndValue
+		return scanSkipSpace
+	}
+	if c == '/' {
+		s.step = stateBeginComment
+		s.commentEndStep = stateEndValue
 		return scanSkipSpace
 	}
 	ps := s.parseState[n-1]
@@ -344,6 +407,11 @@ func stateEndValue(s *scanner, c byte) int {
 // such as after reading `{}` or `[1,2,3]`.
 // Only space characters should be seen now.
 func stateEndTop(s *scanner, c byte) int {
+	if c == '/' {
+		s.step = stateBeginComment
+		s.commentEndStep = stateEndTop
+		return scanSkipSpace
+	}
 	if c != ' ' && c != '\t' && c != '\r' && c != '\n' {
 		// Complain about non-space byte on next call.
 		s.error(c, "after top-level value")
