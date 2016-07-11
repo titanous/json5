@@ -227,7 +227,10 @@ func stateBeginValue(s *scanner, c byte) int {
 		s.pushParseState(parseArrayValue)
 		return scanBeginArray
 	case '"':
-		s.step = stateInString
+		s.step = stateInStringDouble
+		return scanBeginLiteral
+	case '\'':
+		s.step = stateInStringSingle
 		return scanBeginLiteral
 	case '-', '+':
 		s.step = stateSign
@@ -318,7 +321,11 @@ func stateBeginObjectKey(s *scanner, c byte) int {
 		return scanSkipSpace
 	}
 	if c == '"' {
-		s.step = stateInString
+		s.step = stateInStringDouble
+		return scanBeginLiteral
+	}
+	if c == '\'' {
+		s.step = stateInStringSingle
 		return scanBeginLiteral
 	}
 	if isValidKeyLiteralFirstByte(c) {
@@ -422,14 +429,30 @@ func stateEndTop(s *scanner, c byte) int {
 	return scanEnd
 }
 
-// stateInString is the state after reading `"`.
-func stateInString(s *scanner, c byte) int {
+// stateInStringDouble is the state after reading `"`.
+func stateInStringDouble(s *scanner, c byte) int {
 	if c == '"' {
 		s.step = stateEndValue
 		return scanContinue
 	}
 	if c == '\\' {
-		s.step = stateInStringEsc
+		s.step = stateInStringEsc(stateInStringDouble)
+		return scanContinue
+	}
+	if c < 0x20 {
+		return s.error(c, "in string literal")
+	}
+	return scanContinue
+}
+
+// stateInStringSingle is the state after reading `"`.
+func stateInStringSingle(s *scanner, c byte) int {
+	if c == '\'' {
+		s.step = stateEndValue
+		return scanContinue
+	}
+	if c == '\\' {
+		s.step = stateInStringEsc(stateInStringSingle)
 		return scanContinue
 	}
 	if c < 0x20 {
@@ -439,56 +462,66 @@ func stateInString(s *scanner, c byte) int {
 }
 
 // stateInStringEsc is the state after reading `"\` during a quoted string.
-func stateInStringEsc(s *scanner, c byte) int {
-	switch c {
-	case 'b', 'f', 'n', 'r', 't', '\\', '/', '"':
-		s.step = stateInString
-		return scanContinue
-	case 'u':
-		s.step = stateInStringEscU
-		return scanContinue
+func stateInStringEsc(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
+	return func(s *scanner, c byte) int {
+		switch c {
+		case 'b', 'f', 'n', 'r', 't', '\\', '/', '"', '\'':
+			s.step = resume
+			return scanContinue
+		case 'u':
+			s.step = stateInStringEscU(resume)
+			return scanContinue
+		}
+		return s.error(c, "in string escape code")
 	}
-	return s.error(c, "in string escape code")
 }
 
 // stateInStringEscU is the state after reading `"\u` during a quoted string.
-func stateInStringEscU(s *scanner, c byte) int {
-	if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
-		s.step = stateInStringEscU1
-		return scanContinue
+func stateInStringEscU(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
+	return func(s *scanner, c byte) int {
+		if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
+			s.step = stateInStringEscU1(resume)
+			return scanContinue
+		}
+		// numbers
+		return s.error(c, "in \\u hexadecimal character escape")
 	}
-	// numbers
-	return s.error(c, "in \\u hexadecimal character escape")
 }
 
 // stateInStringEscU1 is the state after reading `"\u1` during a quoted string.
-func stateInStringEscU1(s *scanner, c byte) int {
-	if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
-		s.step = stateInStringEscU12
-		return scanContinue
+func stateInStringEscU1(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
+	return func(s *scanner, c byte) int {
+		if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
+			s.step = stateInStringEscU12(resume)
+			return scanContinue
+		}
+		// numbers
+		return s.error(c, "in \\u hexadecimal character escape")
 	}
-	// numbers
-	return s.error(c, "in \\u hexadecimal character escape")
 }
 
 // stateInStringEscU12 is the state after reading `"\u12` during a quoted string.
-func stateInStringEscU12(s *scanner, c byte) int {
-	if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
-		s.step = stateInStringEscU123
-		return scanContinue
+func stateInStringEscU12(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
+	return func(s *scanner, c byte) int {
+		if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
+			s.step = stateInStringEscU123(resume)
+			return scanContinue
+		}
+		// numbers
+		return s.error(c, "in \\u hexadecimal character escape")
 	}
-	// numbers
-	return s.error(c, "in \\u hexadecimal character escape")
 }
 
 // stateInStringEscU123 is the state after reading `"\u123` during a quoted string.
-func stateInStringEscU123(s *scanner, c byte) int {
-	if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
-		s.step = stateInString
-		return scanContinue
+func stateInStringEscU123(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
+	return func(s *scanner, c byte) int {
+		if '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' {
+			s.step = resume
+			return scanContinue
+		}
+		// numbers
+		return s.error(c, "in \\u hexadecimal character escape")
 	}
-	// numbers
-	return s.error(c, "in \\u hexadecimal character escape")
 }
 
 // stateSign is the state after reading `+` or `-` during a number.

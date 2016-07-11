@@ -839,7 +839,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 			}
 		}
 
-	case '"': // string
+	case '"', '\'': // string
 		s := item
 		if !unquotedString {
 			var ok bool
@@ -1004,7 +1004,7 @@ func (d *decodeState) objectInterface() map[string]interface{} {
 		start := d.off - 1
 		op = d.scanWhile(scanContinue)
 		key := d.data[start : d.off-1]
-		if key[0] == '"' {
+		if key[0] == '"' || key[0] == '\'' {
 			var ok bool
 			key, ok = unquoteBytes(key)
 			if !ok {
@@ -1053,7 +1053,7 @@ func (d *decodeState) literalInterface() interface{} {
 	case 't', 'f': // true, false
 		return c == 't'
 
-	case '"': // string
+	case '"', '\'': // string
 		s, ok := unquote(item)
 		if !ok {
 			d.error(errPhase)
@@ -1094,7 +1094,7 @@ func unquote(s []byte) (t string, ok bool) {
 }
 
 func unquoteBytes(s []byte) (t []byte, ok bool) {
-	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+	if len(s) < 2 || (s[0] != '"' && s[0] != '\'') || (s[len(s)-1] != '"' && s[len(s)-1] != '\'') {
 		return
 	}
 	s = s[1 : len(s)-1]
@@ -1105,7 +1105,7 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 	r := 0
 	for r < len(s) {
 		c := s[r]
-		if c == '\\' || c == '"' || c < ' ' {
+		if c == '\\' || c == '"' || c == '\'' || c < ' ' {
 			break
 		}
 		if c < utf8.RuneSelf {
@@ -1188,7 +1188,7 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 			}
 
 		// Quote, control characters are invalid.
-		case c == '"', c < ' ':
+		case s[0] == '"' && c == '"', s[0] == '\'' && c == '\'', c < ' ':
 			return
 
 		// ASCII
