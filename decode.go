@@ -198,12 +198,28 @@ func isValidNumber(s string) bool {
 		return false
 	}
 
-	// Optional -/+/.
-	if s[0] == '-' || s[0] == '+' || s[0] == '.' {
+	if s == "NaN" {
+		return true
+	}
+
+	// Optional -/+
+	if s[0] == '-' || s[0] == '+' {
 		s = s[1:]
 		if s == "" {
 			return false
 		}
+	}
+
+	if len(s) > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') {
+		s = s[2:]
+		for len(s) > 0 {
+			if (s[0] >= '0' && s[0] <= '9') || (s[0] >= 'a' && s[0] <= 'f') || (s[0] >= 'A' && s[0] <= 'F') {
+				s = s[1:]
+				continue
+			}
+			return false
+		}
+		return true
 	}
 
 	// Digits
@@ -211,11 +227,16 @@ func isValidNumber(s string) bool {
 	default:
 		return false
 
-	case s == "Infinity", s == "+Infinity", s == "-Infinity", s == "NaN":
+	case s == "Infinity":
 		return true
 
 	case s[0] == '0':
 		s = s[1:]
+
+	case s[0] == '.':
+		if len(s) == 1 {
+			return false
+		}
 
 	case '1' <= s[0] && s[0] <= '9':
 		s = s[1:]
@@ -224,9 +245,9 @@ func isValidNumber(s string) bool {
 		}
 	}
 
-	// . followed by 1 or more digits.
-	if len(s) >= 2 && s[0] == '.' && '0' <= s[1] && s[1] <= '9' {
-		s = s[2:]
+	// decimal followed by 0 or more digits
+	if len(s) > 0 && s[0] == '.' {
+		s = s[1:]
 		for len(s) > 0 && '0' <= s[0] && s[0] <= '9' {
 			s = s[1:]
 		}

@@ -10,20 +10,21 @@ import (
 )
 
 func TestNumberIsValid(t *testing.T) {
-	// From: http://stackoverflow.com/a/13340826
-	var jsonNumberRegexp = regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
-
 	validTests := []string{
 		"0",
 		"-0",
 		"1",
+		"+1",
 		"-1",
 		"0.1",
 		"-0.1",
+		"+0.1",
 		"1234",
 		"-1234",
+		"+1234",
 		"12.34",
 		"-12.34",
+		"+12.34",
 		"12E0",
 		"12E1",
 		"12e34",
@@ -36,6 +37,12 @@ func TestNumberIsValid(t *testing.T) {
 		"-12E-0",
 		"-12e+1",
 		"-12e-34",
+		"+12E0",
+		"+12E1",
+		"+12e34",
+		"+12E-0",
+		"+12e+1",
+		"+12e-34",
 		"1.2E0",
 		"1.2E1",
 		"1.2e34",
@@ -48,6 +55,12 @@ func TestNumberIsValid(t *testing.T) {
 		"-1.2E-0",
 		"-1.2e+1",
 		"-1.2e-34",
+		"+1.2E0",
+		"+1.2E1",
+		"+1.2e34",
+		"+1.2E-0",
+		"+1.2e+1",
+		"+1.2e-34",
 		"0E0",
 		"0E1",
 		"0e34",
@@ -60,6 +73,52 @@ func TestNumberIsValid(t *testing.T) {
 		"-0E-0",
 		"-0e+1",
 		"-0e-34",
+		"+0E0",
+		"+0E1",
+		"+0e34",
+		"+0E-0",
+		"+0e+1",
+		"+0e-34",
+		"1.",
+		"+1.",
+		"-1.",
+		"1.e1",
+		"+1.e1",
+		"-1.e1",
+		".5",
+		"-.5",
+		"+.5",
+		"0xa",
+		"0xA",
+		"0XA",
+		"-0XA",
+		"+0XA",
+		"0x0",
+		"0x0",
+		"0X0",
+		"-0X0",
+		"+0X0",
+		"0x2",
+		"0x2",
+		"0X2",
+		"-0X2",
+		"+0X2",
+		"0xDEADBeef",
+		"-0xDEADBeef",
+		"+0xDEADBeef",
+		"0XDEADBeef",
+		"-0XDEADBeef",
+		"+0XDEADBeef",
+		"0xDEAD3eef",
+		"-0xDEAD3eef",
+		"+0xDEAD3eef",
+		"0XDEAD3eef",
+		"-0XDEAD3eef",
+		"+0XDEAD3eef",
+		"NaN",
+		"+Infinity",
+		"-Infinity",
+		"Infinity",
 	}
 
 	for _, test := range validTests {
@@ -70,10 +129,6 @@ func TestNumberIsValid(t *testing.T) {
 		var f float64
 		if err := Unmarshal([]byte(test), &f); err != nil {
 			t.Errorf("%s should be valid but Unmarshal failed: %v", test, err)
-		}
-
-		if !jsonNumberRegexp.MatchString(test) {
-			t.Errorf("%s should be valid but regexp does not match", test)
 		}
 	}
 
@@ -96,9 +151,16 @@ func TestNumberIsValid(t *testing.T) {
 		"1ea",
 		"1a",
 		"1.a",
-		"1.",
 		"01",
-		"1.e1",
+		"0xDsADBeef",
+		".0xDEADBeef",
+		"0XDsADBeef",
+		".0XDEADBeef",
+		"+NaN",
+		"-NaN",
+		".NaN",
+		".Infinity",
+		"0xs",
 	}
 
 	for _, test := range invalidTests {
@@ -109,10 +171,6 @@ func TestNumberIsValid(t *testing.T) {
 		var f float64
 		if err := Unmarshal([]byte(test), &f); err == nil {
 			t.Errorf("%s should be invalid but unmarshal wrote %v", test, f)
-		}
-
-		if jsonNumberRegexp.MatchString(test) {
-			t.Errorf("%s should be invalid but matches regexp", test)
 		}
 	}
 }
