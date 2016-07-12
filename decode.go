@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Represents JSON data structure using native Go types: booleans, floats,
-// strings, arrays, and maps.
-
+// Package json5 implements decoding of JSON5 values.
 package json5
 
 import (
