@@ -5,7 +5,7 @@
 package json5
 
 import (
-	"regexp"
+	"math"
 	"testing"
 )
 
@@ -182,10 +182,57 @@ func BenchmarkNumberIsValid(b *testing.B) {
 	}
 }
 
-func BenchmarkNumberIsValidRegexp(b *testing.B) {
-	var jsonNumberRegexp = regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
-	s := "-61657.61667E+61673"
-	for i := 0; i < b.N; i++ {
-		jsonNumberRegexp.MatchString(s)
+func TestNumberFloat64(t *testing.T) {
+	tests := map[string]float64{
+		"0xDeADb":   0xdeadb,
+		"+0xDeADb":  0xdeadb,
+		"-0xDeADb":  -0xdeadb,
+		"-0XDeADb":  -0xdeadb,
+		"-0x0":      math.Copysign(0, -1),
+		".5":        0.5,
+		"-.5":       -0.5,
+		"+1.e1":     1.e1,
+		"-1.e1":     -1.e1,
+		"-0":        math.Copysign(0, -1),
+		"-Infinity": math.Inf(-1),
+		"Infinity":  math.Inf(0),
+		"+Infinity": math.Inf(1),
+		"NaN":       math.NaN(),
+	}
+
+	for s, f := range tests {
+		res, err := Number(s).Float64()
+		if err != nil {
+			t.Errorf("failed to parse %s: %s", s, err)
+		}
+		if s == "NaN" {
+			if !math.IsNaN(res) {
+				t.Errorf("expected NaN")
+			}
+		} else {
+			if res != f {
+				t.Errorf("wanted %v, got %v", f, res)
+			}
+		}
+	}
+}
+
+func TestNumberInt64(t *testing.T) {
+	tests := map[string]int64{
+		"0xDeADb":  0xdeadb,
+		"+0xDeADb": 0xdeadb,
+		"-0xDeADb": -0xdeadb,
+		"-0XDeADb": -0xdeadb,
+		"0x0":      0,
+	}
+
+	for s, i := range tests {
+		res, err := Number(s).Int64()
+		if err != nil {
+			t.Errorf("failed to parse %s: %s", s, err)
+		}
+		if res != i {
+			t.Errorf("wanted %v, got %v", i, res)
+		}
 	}
 }

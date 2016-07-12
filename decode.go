@@ -178,11 +178,25 @@ func (n Number) String() string { return string(n) }
 
 // Float64 returns the number as a float64.
 func (n Number) Float64() (float64, error) {
+	if h, ok := hexString(string(n)); ok {
+		n, err := strconv.ParseInt(h, 16, 64)
+		if err != nil {
+			return 0, err
+		}
+		f := float64(n)
+		if h[0] == '-' && n == 0 {
+			f = -f
+		}
+		return f, nil
+	}
 	return strconv.ParseFloat(string(n), 64)
 }
 
 // Int64 returns the number as an int64.
 func (n Number) Int64() (int64, error) {
+	if h, ok := hexString(string(n)); ok {
+		return strconv.ParseInt(h, 16, 64)
+	}
 	return strconv.ParseInt(string(n), 10, 64)
 }
 
@@ -1127,7 +1141,7 @@ func (d *decodeState) literalInterface() interface{} {
 		return math.Inf(0)
 
 	case 'N': // NaN
-		return math.NaN
+		return math.NaN()
 
 	case '"', '\'': // string
 		s, ok := unquote(item)
