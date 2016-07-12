@@ -250,6 +250,12 @@ func stateBeginValue(s *scanner, c byte) int {
 	case 'n': // beginning of null
 		s.step = stateN
 		return scanBeginLiteral
+	case 'I': // beginning of Infinity
+		s.step = stateInfinity
+		return scanBeginLiteral
+	case 'N': // beginning of NaN
+		s.step = stateNaN
+		return scanBeginLiteral
 	case '/':
 		s.step = stateBeginComment
 		s.commentEndStep = stateBeginValue
@@ -552,19 +558,22 @@ func stateInStringEscU123(resume func(s *scanner, c byte) int) func(s *scanner, 
 
 // stateSign is the state after reading `+` or `-` during a number.
 func stateSign(s *scanner, c byte) int {
-	if c == '0' {
+	switch {
+	case c == '0':
 		s.step = stateFirst0
 		return scanContinue
-	}
-	if '1' <= c && c <= '9' {
+	case '1' <= c && c <= '9':
 		s.step = state1
 		return scanContinue
-	}
-	if c == '.' {
+	case c == '.':
 		s.step = stateSign
 		return scanContinue
+	case c == 'I':
+		s.step = stateInfinity
+		return scanContinue
+	default:
+		return s.error(c, "in numeric literal")
 	}
-	return s.error(c, "in numeric literal")
 }
 
 // state1 is the state after reading a non-zero integer during a number,
@@ -769,6 +778,38 @@ func stateNul(s *scanner, c byte) int {
 		return scanContinue
 	}
 	return s.error(c, "in literal null (expecting 'l')")
+}
+
+func stateInfinity(s *scanner, c byte) int {
+	str := "nfinity"
+	nextState := func(s *scanner, c byte) int {
+		if c == str[0] {
+			str = str[1:]
+			if str == "" {
+				s.step = stateEndValue
+			}
+			return scanContinue
+		}
+		return s.error(c, "in literal Infinity (expecting "+quoteChar(str[0])+")")
+	}
+	s.step = nextState
+	return nextState(s, c)
+}
+
+func stateNaN(s *scanner, c byte) int {
+	str := "aN"
+	nextState := func(s *scanner, c byte) int {
+		if c == str[0] {
+			str = str[1:]
+			if str == "" {
+				s.step = stateEndValue
+			}
+			return scanContinue
+		}
+		return s.error(c, "in literal NaN (expecting "+quoteChar(str[0])+")")
+	}
+	s.step = nextState
+	return nextState(s, c)
 }
 
 // stateError is the state after reaching a syntax error,

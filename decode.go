@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -209,6 +210,9 @@ func isValidNumber(s string) bool {
 	switch {
 	default:
 		return false
+
+	case s == "Infinity", s == "+Infinity", s == "-Infinity", s == "NaN":
+		return true
 
 	case s[0] == '0':
 		s = s[1:]
@@ -902,7 +906,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 		}
 
 	default: // number
-		if c != '-' && c != '+' && c != '.' && (c < '0' || c > '9') {
+		if c != '-' && c != '+' && c != '.' && c != 'I' && c != 'N' && (c < '0' || c > '9') {
 			if fromQuoted {
 				d.error(fmt.Errorf("json: invalid use of ,string struct tag, trying to unmarshal %q into %v", item, v.Type()))
 			} else {
@@ -1100,6 +1104,12 @@ func (d *decodeState) literalInterface() interface{} {
 	case 't', 'f': // true, false
 		return c == 't'
 
+	case 'I': // Infinity
+		return math.Inf(0)
+
+	case 'N': // NaN
+		return math.NaN
+
 	case '"', '\'': // string
 		s, ok := unquote(item)
 		if !ok {
@@ -1110,6 +1120,12 @@ func (d *decodeState) literalInterface() interface{} {
 	default: // number
 		if c != '-' && c != '+' && c != '.' && (c < '0' || c > '9') {
 			d.error(errPhase)
+		}
+		if c == '-' && item[1] == 'I' {
+			return math.Inf(-1)
+		}
+		if c == '+' && item[1] == 'I' {
+			return math.Inf(+1)
 		}
 		n, err := d.convertNumber(string(item))
 		if err != nil {
