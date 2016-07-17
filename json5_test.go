@@ -130,3 +130,16 @@ func TestJSON5Decode(t *testing.T) {
 		return nil
 	})
 }
+
+// found with go-fuzz
+func TestQuotedQuote(t *testing.T) {
+	var v struct {
+		E string
+	}
+	if err := Unmarshal([]byte(`{e:"'"}`), &v); err != nil {
+		t.Error(err)
+	}
+	if v.E != "'" {
+		t.Errorf(`expected "'", got %q`, v.E)
+	}
+}

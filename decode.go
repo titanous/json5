@@ -1189,6 +1189,7 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 	if len(s) < 2 || (s[0] != '"' && s[0] != '\'') || (s[len(s)-1] != '"' && s[len(s)-1] != '\'') {
 		return
 	}
+	orig := s
 	s = s[1 : len(s)-1]
 
 	// Check for unusual characters. If there are none,
@@ -1287,7 +1288,7 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 			}
 
 		// Quote, control characters are invalid.
-		case s[0] == '"' && c == '"', s[0] == '\'' && c == '\'', c < ' ':
+		case orig[0] == '"' && c == '"', orig[0] == '\'' && c == '\'', c < ' ':
 			return
 
 		// ASCII
