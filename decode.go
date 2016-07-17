@@ -14,7 +14,6 @@ import (
 	"math"
 	"reflect"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"unicode"
 	"unicode/utf16"
@@ -308,9 +307,6 @@ func (d *decodeState) init(data []byte) *decodeState {
 
 // error aborts the decoding by panicking with err.
 func (d *decodeState) error(err error) {
-	if err == errPhase {
-		debug.PrintStack()
-	}
 	panic(err)
 }
 
