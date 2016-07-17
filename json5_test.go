@@ -131,7 +131,8 @@ func TestJSON5Decode(t *testing.T) {
 	})
 }
 
-// found with go-fuzz
+// The tests below this comment were found with go-fuzz
+
 func TestQuotedQuote(t *testing.T) {
 	var v struct {
 		E string
@@ -141,5 +142,13 @@ func TestQuotedQuote(t *testing.T) {
 	}
 	if v.E != "'" {
 		t.Errorf(`expected "'", got %q`, v.E)
+	}
+}
+
+func TestInvalidNewline(t *testing.T) {
+	expected := "invalid character '\\n' in string literal"
+	var v interface{}
+	if err := Unmarshal([]byte("{a:'\\\r0\n'}"), &v); err == nil || err.Error() != expected {
+		t.Errorf("expected error %q, got %s", expected, err)
 	}
 }

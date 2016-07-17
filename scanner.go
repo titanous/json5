@@ -500,8 +500,8 @@ func stateInStringEsc(resume func(s *scanner, c byte) int) func(s *scanner, c by
 // stateInStringEscCR is the state after reading `"\\r` during a quoted string.
 func stateInStringEscCR(resume func(s *scanner, c byte) int) func(s *scanner, c byte) int {
 	return func(s *scanner, c byte) int {
+		s.step = resume
 		if c == '\n' {
-			s.step = resume
 			return scanContinue
 		}
 		return resume(s, c)
