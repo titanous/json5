@@ -284,12 +284,14 @@ func isValidNumber(s string) bool {
 
 // decodeState represents the state while decoding a JSON value.
 type decodeState struct {
-	data       []byte
-	off        int // read offset in data
-	scan       scanner
-	nextscan   scanner // for calls to nextValue
-	savedError error
-	useNumber  bool
+	data     []byte
+	off      int // read offset in data
+	scan     scanner
+	nextscan scanner // for calls to nextValue
+
+	savedError            error
+	useNumber             bool
+	disallowUnknownFields bool
 }
 
 // errPhase is used for errors that should not happen unless
@@ -703,6 +705,8 @@ func (d *decodeState) object(v reflect.Value) {
 					}
 					subv = subv.Field(i)
 				}
+			} else if d.disallowUnknownFields {
+				d.saveError(fmt.Errorf("json: unknown field %q", key))
 			}
 		}
 
