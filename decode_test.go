@@ -1346,3 +1346,16 @@ func TestInvalidUnmarshalText(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeSingleQuoteStringInterface(t *testing.T) {
+	buf := []byte(`{ 'key': 'value' }`)
+	got := make(map[string]interface{})
+	err := Unmarshal(buf, &got)
+	if err != nil {
+		t.Errorf("Unmarshal: %v", err)
+	}
+	want := map[string]interface{}{"key": "value"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Unmarshal = %q; want %q", got, want)
+	}
+}
