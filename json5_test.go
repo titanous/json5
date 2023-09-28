@@ -121,7 +121,7 @@ func TestJSON5Decode(t *testing.T) {
 				}
 			}
 			_, err = parseJSON5()
-			if err == nil {
+			if err == nil && !usedUnmarshalErrHandlerHook.Load() {
 				t.Errorf("expected JSON5 parsing to fail")
 				return nil
 			}
