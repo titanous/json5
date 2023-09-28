@@ -20,6 +20,23 @@ import (
 	"unicode/utf8"
 )
 
+// UnmarshalErrHandler while decode error, will inject this handler, catch error.
+// if you want to ignore this error, you can return nil
+type UnmarshalErrHandler func(err error) error
+
+var (
+	usedUnmarshalErrHandlerHook atomic.Bool
+	unmarshalErrHandlerHook     UnmarshalErrHandler = func(err error) error { return err }
+)
+
+// UseUnmarshalErrHandler register a yourself error handler, only once
+func UseUnmarshalErrHandler(handler UnmarshalErrHandler) {
+	if usedUnmarshalErrHandlerHook.Swap(true) {
+		return
+	}
+	unmarshalErrHandlerHook = handler
+}
+
 // Unmarshal parses the JSON-encoded data and stores the result
 // in the value pointed to by v.
 //
@@ -308,14 +325,22 @@ func (d *decodeState) init(data []byte) *decodeState {
 
 // error aborts the decoding by panicking with err.
 func (d *decodeState) error(err error) {
-	panic(err)
+	if e := unmarshalErrHandlerHook(err); e != nil {
+		panic(err)
+	} else {
+		d.savedError = e
+	}
 }
 
 // saveError saves the first err it is called with,
 // for reporting at the end of the unmarshal.
 func (d *decodeState) saveError(err error) {
-	if d.savedError == nil {
-		d.savedError = err
+	if e := unmarshalErrHandlerHook(err); e == nil {
+		d.savedError = e
+	} else {
+		if d.savedError == nil {
+			d.savedError = err
+		}
 	}
 }
 
@@ -900,10 +925,9 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 		}
 
 	case '"', '\'': // string
-		s := item
+		s := string(item)
 		if !unquotedString {
-			var ok bool
-			s, ok = unquoteBytes(item)
+			ss, ok := unquoteBytes([]byte(item))
 			if !ok {
 				if fromQuoted {
 					d.error(fmt.Errorf("json: invalid use of ,string struct tag, trying to unmarshal %q into %v", item, v.Type()))
@@ -911,6 +935,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 					d.error(errPhase)
 				}
 			}
+			s = string(ss)
 		}
 		switch v.Kind() {
 		default:
@@ -921,7 +946,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 				break
 			}
 			b := make([]byte, base64.StdEncoding.DecodedLen(len(s)))
-			n, err := base64.StdEncoding.Decode(b, s)
+			n, err := base64.StdEncoding.Decode(b, []byte(s))
 			if err != nil {
 				d.saveError(err)
 				break
@@ -935,6 +960,50 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted, unq
 			} else {
 				d.saveError(&UnmarshalTypeError{"string", v.Type(), int64(d.off)})
 			}
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			var n int64
+			var err error
+			if h, ok := hexString(s); ok {
+				n, err = strconv.ParseInt(h, 16, 64)
+			} else {
+				n, err = strconv.ParseInt(s, 10, 64)
+			}
+			if err != nil || v.OverflowInt(n) {
+				d.saveError(&UnmarshalTypeError{"number " + s, v.Type(), int64(d.off)})
+				break
+			}
+			v.SetInt(n)
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			var n uint64
+			var err error
+			if h, ok := hexString(s); ok {
+				n, err = strconv.ParseUint(h, 16, 64)
+			} else {
+				n, err = strconv.ParseUint(s, 10, 64)
+			}
+			if err != nil || v.OverflowUint(n) {
+				d.saveError(&UnmarshalTypeError{"number " + s, v.Type(), int64(d.off)})
+				break
+			}
+			v.SetUint(n)
+		case reflect.Float32, reflect.Float64:
+			var n float64
+			var err error
+			if h, ok := hexString(s); ok {
+				var nn int64
+				nn, err = strconv.ParseInt(h, 16, 64)
+				n = float64(nn)
+				if s[0] == '-' && nn == 0 {
+					n = -n
+				}
+			} else {
+				n, err = strconv.ParseFloat(s, v.Type().Bits())
+			}
+			if err != nil || v.OverflowFloat(n) {
+				d.saveError(&UnmarshalTypeError{"number " + s, v.Type(), int64(d.off)})
+				break
+			}
+			v.SetFloat(n)
 		}
 
 	default: // number
