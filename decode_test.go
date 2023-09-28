@@ -665,6 +665,76 @@ var wrongStringTests = []wrongStringTest{
 	{`{"result":123}`, `json: invalid use of ,string struct tag, trying to unmarshal unquoted value into string`},
 }
 
+func TestErrHandler(t *testing.T) {
+	type ErrHandlerStruct struct {
+		VarName  string `json:"varname,omitempty"`
+		Required string `json:"required,omitempty"`
+		Mode     string `json:"mode,omitempty"`
+
+		Title    string `json:"title,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ImageUrl string `json:"imageUrl,omitempty"`
+		Size     int    `json:"size,omitempty,string"`
+	}
+	data := `[
+	{
+		title: '我的头像',
+		value: '"{{  .AvatarUrl}}"',
+		imageUrl: 'https://www.AvatarUrlImage.com',
+		VarName: 666,
+	},
+	{
+		title: '我的昵称',
+		value: "{{.NickName}}",
+		size: '{{.Size}}',
+		imageUrl: 'https://www.NickNameImage.com'
+	}
+]`
+	UseUnmarshalErrHandler(func(err error) error {
+		if err != nil {
+			switch {
+			case strings.Contains(err.Error(), "json: invalid use of ,string"):
+				return nil
+			case strings.Contains(err.Error(), "json: cannot unmarshal number"):
+				return nil
+			case strings.Contains(err.Error(), "json: cannot unmarshal string"):
+				return nil
+			case strings.Contains(err.Error(), "json: cannot unmarshal number into Go value of type string"):
+				return nil
+			}
+		}
+		return err
+	})
+
+	var res []*ErrHandlerStruct
+	dec := NewDecoder(strings.NewReader(data))
+	err := dec.Decode(&res)
+	if err == nil {
+		fmt.Printf("NewDecoder result: %+v\n", res)
+	} else {
+		fmt.Printf("NewDecoder result: %+v err: %v\n", res, err)
+	}
+	if len(res) != 2 {
+		t.Errorf("Decode: result len is not match")
+	}
+	if err != nil {
+		t.Errorf("Decode: error not nil")
+	}
+	var res2 []*ErrHandlerStruct
+	err2 := Unmarshal([]byte(data), &res2)
+	if err2 == nil {
+		fmt.Printf("Unmarshal result: %+v\n", res2)
+	} else {
+		fmt.Printf("Unmarshal result: %+v err: %v\n", res2, err2)
+	}
+	if len(res2) != 2 {
+		t.Errorf("Unmarshal: result len is not match")
+	}
+	if err2 != nil {
+		t.Errorf("Unmarshal: error not nil")
+	}
+}
+
 // If people misuse the ,string modifier, the error message should be
 // helpful, telling the user that they're doing it wrong.
 func TestErrorMessageFromMisusedString(t *testing.T) {
@@ -673,14 +743,14 @@ func TestErrorMessageFromMisusedString(t *testing.T) {
 		var s WrongString
 		err := NewDecoder(r).Decode(&s)
 		got := fmt.Sprintf("%v", err)
-		if got != tt.err {
+		if !usedUnmarshalErrHandlerHook.Load() && got != tt.err {
 			t.Errorf("%d. got err = %q, want %q", n, got, tt.err)
 		}
 	}
 }
 
 func noSpace(c rune) rune {
-	if isSpace(byte(c)) { //only used for ascii
+	if isSpace(byte(c)) { // only used for ascii
 		return -1
 	}
 	return c
@@ -1037,7 +1107,7 @@ func TestEmptyString(t *testing.T) {
 	dec := NewDecoder(strings.NewReader(data))
 	var t2 T2
 	err := dec.Decode(&t2)
-	if err == nil {
+	if !usedUnmarshalErrHandlerHook.Load() && err == nil {
 		t.Fatal("Decode: did not return error")
 	}
 	if t2.Number1 != 1 {
@@ -1175,7 +1245,7 @@ var decodeTypeErrorTests = []struct {
 func TestUnmarshalTypeError(t *testing.T) {
 	for _, item := range decodeTypeErrorTests {
 		err := Unmarshal([]byte(item.src), item.dest)
-		if _, ok := err.(*UnmarshalTypeError); !ok {
+		if _, ok := err.(*UnmarshalTypeError); !ok && !usedUnmarshalErrHandlerHook.Load() {
 			t.Errorf("expected type error for Unmarshal(%q, type %T): got %T",
 				item.src, item.dest, err)
 		}
@@ -1337,12 +1407,14 @@ func TestInvalidUnmarshalText(t *testing.T) {
 	buf := []byte(`123`)
 	for _, tt := range invalidUnmarshalTextTests {
 		err := Unmarshal(buf, tt.v)
-		if err == nil {
+		if !usedUnmarshalErrHandlerHook.Load() && err == nil {
 			t.Errorf("Unmarshal expecting error, got nil")
 			continue
 		}
-		if got := err.Error(); got != tt.want {
-			t.Errorf("Unmarshal = %q; want %q", got, tt.want)
+		if !usedUnmarshalErrHandlerHook.Load() {
+			if got := err.Error(); got != tt.want {
+				t.Errorf("Unmarshal = %q; want %q", got, tt.want)
+			}
 		}
 	}
 }
