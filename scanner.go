@@ -457,6 +457,9 @@ func stateInStringDouble(s *scanner, c byte) int {
 		s.step = stateInStringEsc(stateInStringDouble)
 		return scanContinue
 	}
+	if c == '\t' {
+		return scanContinue
+	}
 	if c < 0x20 {
 		return s.error(c, "in string literal")
 	}

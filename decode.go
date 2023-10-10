@@ -1291,7 +1291,7 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 			}
 
 		// Quote, control characters are invalid.
-		case orig[0] == '"' && c == '"', orig[0] == '\'' && c == '\'', c < ' ':
+		case orig[0] == '"' && c == '"', orig[0] == '\'' && c == '\'', c < ' ' && c != '\t':
 			return
 
 		// ASCII
